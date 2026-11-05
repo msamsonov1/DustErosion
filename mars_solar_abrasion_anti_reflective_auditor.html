@@ -1,0 +1,1431 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DustErosion: Mars Surface Solar Panel Abrasion & Anti-Reflective Auditor</title>
+
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <!-- MathJax v3 Configuration (Must precede MathJax script) -->
+  <script>
+    window.MathJax = {
+      tex: {
+        inlineMath: [['$', '$'], ['\\(', '\\)']],
+        displayMath: [['$$', '$$'], ['\\[', '\\]']]
+      },
+      svg: { fontCache: 'global' }
+    };
+  </script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background-color: #05070d;
+      color: #e2e8f0;
+      overflow-x: hidden;
+    }
+
+    .font-mono-code {
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    .formula-box {
+      background-color: #03050a;
+      border: 1px solid #1e293b;
+      padding: 0.85rem;
+      border-radius: 0.5rem;
+      color: #38bdf8;
+      font-size: 0.875rem;
+      overflow-x: auto;
+      margin-top: 0.5rem;
+      margin-bottom: 0.5rem;
+    }
+
+    /* Custom scrollbars */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #090d16;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #1e293b;
+      border-radius: 3px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #334155;
+    }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col bg-[#05070d] text-slate-100 antialiased selection:bg-cyan-500 selection:text-black">
+
+  <!-- Top Navigation Header -->
+  <header class="border-b border-gray-800 bg-[#080c14]/90 backdrop-blur sticky top-0 z-50 px-4 py-3">
+    <div class="max-w-7xl mx-auto flex flex-col md:flex-row md:items-center justify-between gap-3">
+      <div class="flex items-center space-x-3">
+        <div class="p-2 rounded-lg bg-cyan-950/70 border border-cyan-500/40 text-cyan-400">
+          <i data-lucide="sun-medium" class="w-6 h-6"></i>
+        </div>
+        <div>
+          <div class="flex items-center space-x-2">
+            <h1 class="text-lg font-bold tracking-tight text-white flex items-center gap-2">
+              DustErosion <span class="text-xs px-2 py-0.5 rounded bg-cyan-900/60 text-cyan-300 border border-cyan-700/50">SBIR Phase I</span>
+            </h1>
+            <span class="text-xs font-mono-code text-amber-400 bg-amber-950/40 border border-amber-800/40 px-2 py-0.5 rounded">NASA Topic S12.04</span>
+          </div>
+          <p class="text-xs text-slate-400">Mars Photovoltaic Kinetic Abrasion & Interdigitated Capacitive Dielectric Auditor</p>
+        </div>
+      </div>
+
+      <!-- Navigation Tabs -->
+      <nav class="flex items-center bg-gray-950 p-1 rounded-xl border border-gray-800 self-start md:self-auto text-xs font-medium">
+        <button id="tabBtnSim" onclick="switchTab('sim')" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all text-cyan-300 bg-cyan-950/60 border border-cyan-500/30">
+          <i data-lucide="activity" class="w-4 h-4"></i>
+          <span>Live Telemetry HUD</span>
+        </button>
+        <button id="tabBtnPhysics" onclick="switchTab('physics')" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all text-slate-400 hover:text-slate-200">
+          <i data-lucide="atom" class="w-4 h-4"></i>
+          <span>Core Physics</span>
+        </button>
+        <button id="tabBtnProposal" onclick="switchTab('proposal')" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all text-slate-400 hover:text-slate-200">
+          <i data-lucide="file-text" class="w-4 h-4"></i>
+          <span>$225k NASA Proposal</span>
+        </button>
+        <button id="tabBtnARR" onclick="switchTab('arr')" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all text-slate-400 hover:text-slate-200">
+          <i data-lucide="dollar-sign" class="w-4 h-4"></i>
+          <span>$218M Commercial ARR</span>
+        </button>
+      </nav>
+    </div>
+  </header>
+
+  <!-- Main Content Container -->
+  <main class="flex-1 max-w-7xl w-full mx-auto p-4 md:p-6">
+
+    <!-- ========================================================================= -->
+    <!-- TAB 1: LIVE SIMULATION & TELEMETRY HUD -->
+    <!-- ========================================================================= -->
+    <div id="viewSim" class="space-y-6">
+      <!-- Quick Status Ticker -->
+      <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div class="bg-gray-900/40 border border-gray-800 rounded-xl p-3 backdrop-blur">
+          <div class="text-[10px] uppercase font-mono-code text-slate-400 tracking-wider">Atmospheric Velocity ($v$)</div>
+          <div class="text-xl font-bold font-mono-code text-cyan-400 mt-0.5 flex items-baseline justify-between">
+            <span id="statVelocity">18.4 m/s</span>
+            <span class="text-xs text-slate-500 font-normal">Gale Force</span>
+          </div>
+          <div class="w-full bg-gray-800 h-1 rounded mt-2 overflow-hidden">
+            <div id="barVelocity" class="bg-cyan-500 h-full transition-all duration-300" style="width: 45%;"></div>
+          </div>
+        </div>
+
+        <div class="bg-gray-900/40 border border-gray-800 rounded-xl p-3 backdrop-blur">
+          <div class="text-[10px] uppercase font-mono-code text-slate-400 tracking-wider">IDC Capacitance ($C$)</div>
+          <div class="text-xl font-bold font-mono-code text-emerald-400 mt-0.5 flex items-baseline justify-between">
+            <span id="statCapacitance">44.8 pF</span>
+            <span id="statCapDelta" class="text-xs text-emerald-500 font-normal">-0.2%</span>
+          </div>
+          <div class="w-full bg-gray-800 h-1 rounded mt-2 overflow-hidden">
+            <div id="barCap" class="bg-emerald-500 h-full transition-all duration-300" style="width: 89%;"></div>
+          </div>
+        </div>
+
+        <div class="bg-gray-900/40 border border-gray-800 rounded-xl p-3 backdrop-blur">
+          <div class="text-[10px] uppercase font-mono-code text-slate-400 tracking-wider">ARC / TCO Thickness</div>
+          <div class="text-xl font-bold font-mono-code text-amber-400 mt-0.5 flex items-baseline justify-between">
+            <span id="statThickness">112 nm</span>
+            <span class="text-xs text-slate-500 font-normal">Nominal: 120 nm</span>
+          </div>
+          <div class="w-full bg-gray-800 h-1 rounded mt-2 overflow-hidden">
+            <div id="barThickness" class="bg-amber-500 h-full transition-all duration-300" style="width: 93%;"></div>
+          </div>
+        </div>
+
+        <div class="bg-gray-900/40 border border-gray-800 rounded-xl p-3 backdrop-blur">
+          <div class="text-[10px] uppercase font-mono-code text-slate-400 tracking-wider">Solar Array Output</div>
+          <div class="text-xl font-bold font-mono-code text-rose-400 mt-0.5 flex items-baseline justify-between">
+            <span id="statOutput">842 W</span>
+            <span id="statEta" class="text-xs text-rose-300 font-normal">$\eta = 24.1\%$</span>
+          </div>
+          <div class="w-full bg-gray-800 h-1 rounded mt-2 overflow-hidden">
+            <div id="barOutput" class="bg-rose-500 h-full transition-all duration-300" style="width: 84%;"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Main Canvas & Phase Space Layout -->
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-5">
+        <!-- Physical Canvas Viewport (7 Cols) -->
+        <div class="lg:col-span-7 bg-gray-900/40 border border-gray-800 rounded-2xl p-4 flex flex-col justify-between">
+          <div class="flex items-center justify-between pb-3 border-b border-gray-800">
+            <div class="flex items-center gap-2">
+              <span class="relative flex h-2.5 w-2.5">
+                <span id="pulseIndicator" class="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75"></span>
+                <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-cyan-500"></span>
+              </span>
+              <h2 class="text-sm font-semibold text-white tracking-wide">Mars Rover Solar Surface Micro-Physics</h2>
+            </div>
+            <div class="flex items-center gap-2">
+              <span id="badgeMitigation" class="text-[10px] font-mono-code px-2 py-0.5 rounded bg-gray-800 text-slate-400 border border-gray-700">
+                EDS INACTIVE
+              </span>
+              <span class="text-[10px] font-mono-code px-2 py-0.5 rounded bg-cyan-950/60 text-cyan-400 border border-cyan-800/40">
+                Sol 482 · 14:28 LST
+              </span>
+            </div>
+          </div>
+
+          <!-- HTML5 Canvas Container -->
+          <div class="relative w-full h-[320px] my-3 rounded-xl overflow-hidden bg-[#03050a] border border-gray-900">
+            <canvas id="simCanvas" class="w-full h-full block"></canvas>
+            <!-- Canvas Overlay Legend -->
+            <div class="absolute bottom-2 left-2 bg-gray-950/85 backdrop-blur px-2.5 py-1.5 rounded-lg border border-gray-800/80 text-[10px] font-mono-code space-y-0.5 text-slate-400">
+              <div class="flex items-center gap-2">
+                <span class="w-2.5 h-1 bg-amber-500 inline-block rounded"></span>
+                <span>Martian Basalt & Iron Regolith ($d_p \approx 2\text{–}15\,\mu\text{m}$)</span>
+              </div>
+              <div class="flex items-center gap-2">
+                <span class="w-2.5 h-1 bg-cyan-400 inline-block rounded"></span>
+                <span>Interdigitated Micro-Electrodes (Pt-Cr / ITO)</span>
+              </div>
+              <div class="flex items-center gap-2">
+                <span class="w-2.5 h-1 bg-purple-400 inline-block rounded"></span>
+                <span>Dielectric $SiO_2 / TiO_2$ Anti-Reflective Coating</span>
+              </div>
+            </div>
+
+            <!-- Dynamic Alert Overlay -->
+            <div id="stormWarningOverlay" class="hidden absolute top-3 right-3 bg-rose-950/90 border border-rose-500 text-rose-200 px-3 py-1.5 rounded-lg text-xs font-mono-code flex items-center gap-2 shadow-lg animate-pulse">
+              <i data-lucide="alert-triangle" class="w-4 h-4 text-rose-400"></i>
+              <span>SEVERE SANDBLASTING: DIELECTRIC ABLATION DETECTED</span>
+            </div>
+          </div>
+
+          <!-- Bottom Control Bar -->
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
+            <div>
+              <div class="flex justify-between text-xs text-slate-400 mb-1">
+                <span>Wind Velocity ($v$)</span>
+                <span id="sliderVelVal" class="font-mono-code text-cyan-400">18 m/s</span>
+              </div>
+              <input id="sliderVelocity" type="range" min="0" max="45" value="18" class="w-full accent-cyan-500 bg-gray-800 h-1.5 rounded-lg cursor-pointer">
+            </div>
+
+            <div>
+              <div class="flex justify-between text-xs text-slate-400 mb-1">
+                <span>Dust Density ($\rho_d$)</span>
+                <span id="sliderDustVal" class="font-mono-code text-amber-400">1.2 mg/m³</span>
+              </div>
+              <input id="sliderDust" type="range" min="0.1" max="15.0" step="0.1" value="1.2" class="w-full accent-amber-500 bg-gray-800 h-1.5 rounded-lg cursor-pointer">
+            </div>
+
+            <div>
+              <div class="flex justify-between text-xs text-slate-400 mb-1">
+                <span>Particle Grain Hardness</span>
+                <span id="sliderHardnessVal" class="font-mono-code text-purple-400">6.5 Mohs</span>
+              </div>
+              <input id="sliderHardness" type="range" min="3.0" max="8.5" step="0.5" value="6.5" class="w-full accent-purple-500 bg-gray-800 h-1.5 rounded-lg cursor-pointer">
+            </div>
+          </div>
+        </div>
+
+        <!-- Diagnostic Phase Space Chart (5 Cols) -->
+        <div class="lg:col-span-5 bg-gray-900/40 border border-gray-800 rounded-2xl p-4 flex flex-col justify-between">
+          <div class="flex items-center justify-between pb-3 border-b border-gray-800">
+            <div>
+              <h2 class="text-sm font-semibold text-white">Diagnostic Phase Space</h2>
+              <p class="text-[11px] text-slate-400 font-mono-code">Velocity ($v$) vs. Capacitance ($C$)</p>
+            </div>
+            <span class="text-xs bg-slate-800/80 text-slate-300 px-2 py-0.5 rounded border border-slate-700">Audit Metric</span>
+          </div>
+
+          <!-- Phase-Space Scatter Chart Container -->
+          <div class="relative w-full h-[260px] my-2">
+            <canvas id="phaseSpaceChart"></canvas>
+          </div>
+
+          <div class="p-2.5 bg-gray-950/80 rounded-xl border border-gray-800 text-xs space-y-1.5">
+            <div class="flex items-center justify-between text-slate-300">
+              <span class="font-semibold text-cyan-300">Auditor State Diagnosis:</span>
+              <span id="diagStatusBadge" class="font-mono-code px-2 py-0.5 rounded text-[10px] bg-emerald-950 text-emerald-400 border border-emerald-800">NOMINAL TRANSMISSION</span>
+            </div>
+            <p id="diagExplanation" class="text-[11px] text-slate-400 leading-relaxed">
+              Kinetic energy flux is below the cohesive fracture threshold of the $TiO_2$ anti-reflective matrix. Dielectric thickness remains calibrated at $>110\text{ nm}$.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Secondary Telemetry Plots & Closed-Loop Control Triggers -->
+      <div class="grid grid-cols-1 md:grid-cols-12 gap-5">
+        <!-- Secondary Plot 1: Dielectric Wear vs. Optical Transmittance (4 Cols) -->
+        <div class="md:col-span-4 bg-gray-900/40 border border-gray-800 rounded-2xl p-4">
+          <div class="flex items-center justify-between mb-2">
+            <h3 class="text-xs font-semibold text-white uppercase tracking-wider">Optical Transmittance ($T_{\text{opt}}$)</h3>
+            <span id="statTransmittance" class="font-mono-code text-xs text-cyan-400">93.4%</span>
+          </div>
+          <div class="h-44 w-full">
+            <canvas id="transmittanceChart"></canvas>
+          </div>
+          <p class="text-[10px] text-slate-400 mt-2 font-mono-code">
+            Correlated against Rayleigh scattering from micro-pit nucleation.
+          </p>
+        </div>
+
+        <!-- Secondary Plot 2: Cumulative Energy Degradation & Model Updates (4 Cols) -->
+        <div class="md:col-span-4 bg-gray-900/40 border border-gray-800 rounded-2xl p-4">
+          <div class="flex items-center justify-between mb-2">
+            <h3 class="text-xs font-semibold text-white uppercase tracking-wider">Power Model Drift ($\Delta P_{\text{array}}$)</h3>
+            <span id="statModelDrift" class="font-mono-code text-xs text-amber-400">-12.8 W/sol</span>
+          </div>
+          <div class="h-44 w-full">
+            <canvas id="powerModelChart"></canvas>
+          </div>
+          <p class="text-[10px] text-slate-400 mt-2 font-mono-code">
+            Real-time energy budgeting model updated via in-situ IDC thickness feedback.
+          </p>
+        </div>
+
+        <!-- Closed-Loop Action Panel (4 Cols) -->
+        <div class="md:col-span-4 bg-gray-900/40 border border-gray-800 rounded-2xl p-4 flex flex-col justify-between">
+          <div>
+            <div class="flex items-center justify-between pb-2 border-b border-gray-800 mb-3">
+              <h3 class="text-xs font-semibold text-white uppercase tracking-wider">Mitigation & Injection</h3>
+              <i data-lucide="shield-check" class="w-4 h-4 text-cyan-400"></i>
+            </div>
+
+            <div class="space-y-2.5">
+              <button onclick="injectGlobalDustStorm()" class="w-full text-left p-2.5 rounded-xl bg-amber-950/40 hover:bg-amber-900/50 border border-amber-600/40 text-amber-200 transition text-xs flex items-center justify-between">
+                <div>
+                  <div class="font-semibold flex items-center gap-1.5">
+                    <i data-lucide="cloud-lightning" class="w-3.5 h-3.5 text-amber-400"></i>
+                    Simulate Severe Dust Storm
+                  </div>
+                  <div class="text-[10px] text-amber-300/70 font-mono-code">Spike $v \to 38\text{ m/s}$, scour rate $\times 12$</div>
+                </div>
+                <i data-lucide="chevron-right" class="w-4 h-4 text-amber-400"></i>
+              </button>
+
+              <button onclick="triggerElectrostaticMitigation()" class="w-full text-left p-2.5 rounded-xl bg-cyan-950/40 hover:bg-cyan-900/50 border border-cyan-500/40 text-cyan-200 transition text-xs flex items-center justify-between">
+                <div>
+                  <div class="font-semibold flex items-center gap-1.5">
+                    <i data-lucide="zap" class="w-3.5 h-3.5 text-cyan-400"></i>
+                    Execute Electrostatic Cleaning (EDS)
+                  </div>
+                  <div class="text-[10px] text-cyan-300/70 font-mono-code">Sweep 4-phase AC wave 1.2 kV @ 25 Hz</div>
+                </div>
+                <i data-lucide="chevron-right" class="w-4 h-4 text-cyan-400"></i>
+              </button>
+
+              <button onclick="recalibrateSensors()" class="w-full text-left p-2.5 rounded-xl bg-gray-800/50 hover:bg-gray-700/50 border border-gray-700 text-slate-300 transition text-xs flex items-center justify-between">
+                <div>
+                  <div class="font-semibold flex items-center gap-1.5">
+                    <i data-lucide="refresh-cw" class="w-3.5 h-3.5 text-slate-400"></i>
+                    Re-Zero Capacitive Auditor
+                  </div>
+                  <div class="text-[10px] text-slate-400 font-mono-code">Update baseline $C_0$ for plastic deformation</div>
+                </div>
+                <i data-lucide="chevron-right" class="w-4 h-4 text-slate-400"></i>
+              </button>
+            </div>
+          </div>
+
+          <div class="mt-4 pt-3 border-t border-gray-800 flex items-center justify-between text-[11px] font-mono-code text-slate-400">
+            <span>Observer Routine:</span>
+            <span class="text-cyan-400 flex items-center gap-1">
+              <span class="inline-block w-2 h-2 rounded-full bg-cyan-400 animate-pulse"></span>
+              Autonomous Loop Active
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ========================================================================= -->
+    <!-- TAB 2: CORE PHYSICS & MATHEMATICAL MODEL -->
+    <!-- ========================================================================= -->
+    <div id="viewPhysics" class="hidden space-y-6">
+      <div class="border-b border-gray-800 pb-4">
+        <h2 class="text-xl font-bold text-white flex items-center gap-2">
+          <i data-lucide="atom" class="w-6 h-6 text-cyan-400"></i>
+          Martian Surface Micro-Abrasion & Capacitive State Observer Formulation
+        </h2>
+        <p class="text-sm text-slate-400 mt-1">
+          Rigorous mathematical models mapping saltating regolith kinetic energy fluxes to anti-reflective coating dielectric thinning and high-frequency permittivity degradation.
+        </p>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <!-- Card 1: Kinetic Scouring & Wear Physics -->
+        <div class="bg-gray-900/40 border border-gray-800 rounded-2xl p-5 flex flex-col justify-between">
+          <div>
+            <div class="flex items-center gap-2 text-cyan-400 font-semibold text-sm mb-2">
+              <i data-lucide="wind" class="w-4 h-4"></i>
+              <span>1. Kinetic Particle Scouring & Abrasive Wear Equation</span>
+            </div>
+            <p class="text-xs text-slate-300 leading-relaxed">
+              Martian saltating regolith particles ($SiO_2$, $Fe_2O_3$, basalts) driven by boundary-layer shear winds deliver continuous impact energy to solar cover-glass. The volumetric removal rate $\dot{V}_{\text{erosion}}$ follows a modified Bitter-Finnie ductile-brittle impact erosion law:
+            </p>
+            <div class="formula-box">
+              $$\dot{V}_{\text{erosion}} = \frac{1}{2 \sigma_{\text{yield}} H_m} \sum_{i=1}^{N_p} m_i v_i^2 \cos^2(\alpha_i) \cdot f(\theta_i) + \frac{m_i (v_i \sin(\alpha_i) - v_t)^2}{2 \epsilon_{\text{brittle}}}$$
+            </div>
+            <p class="text-xs text-slate-300 leading-relaxed">
+              Where $H_m$ is the Mohs/Vickers hardness of the multilayer antireflective stack ($TiO_2/SiO_2$), $\sigma_{\text{yield}}$ is the compressive fracture limit, $\alpha_i$ is impact angle, and $v_t$ is the threshold chipping velocity ($\approx 4.2\text{ m/s}$ in $6\text{ mbar } CO_2$).
+            </p>
+          </div>
+          <div class="mt-4 pt-3 border-t border-gray-800/80 text-[11px] font-mono-code text-cyan-300/80">
+            Governing Regime: Low-pressure Knudsen saltation kinetics ($\text{Kn} \approx 0.12$)
+          </div>
+        </div>
+
+        <!-- Card 2: Interdigitated Capacitive Sensor Dielectric Mapping -->
+        <div class="bg-gray-900/40 border border-gray-800 rounded-2xl p-5 flex flex-col justify-between">
+          <div>
+            <div class="flex items-center gap-2 text-emerald-400 font-semibold text-sm mb-2">
+              <i data-lucide="cpu" class="w-4 h-4"></i>
+              <span>2. Interdigitated Capacitive (IDC) Conformal Dielectric Inversion</span>
+            </div>
+            <p class="text-xs text-slate-300 leading-relaxed">
+              Thin-film sub-micron comb electrodes embedded directly beneath the sacrificial anti-reflective coating project an evanescent fringing electric field into the top dielectric layer. Utilizing partial capacitance conformal mapping:
+            </p>
+            <div class="formula-box">
+              $$C_{\text{total}} = 2 \varepsilon_0 L (N-1) \left[ \varepsilon_{\text{sub}} \frac{K(k_{\text{sub}})}{K'(k_{\text{sub}})} + \left(\varepsilon_{\text{arc}}(t) - 1\right) \frac{K(k_{\text{arc}})}{K'(k_{\text{arc}})} \left( 1 - e^{-\frac{2\pi d_{\text{arc}}(t)}{\lambda_{\text{spatial}}}} \right) \right]$$
+            </div>
+            <p class="text-xs text-slate-300 leading-relaxed">
+              Where $K(k)$ represents complete elliptic integrals of the first kind, $\lambda_{\text{spatial}}$ is spatial electrode pitch ($15\,\mu\text{m}$), and $d_{\text{arc}}(t)$ is the instantaneous thickness of the optical coating layer.
+            </p>
+          </div>
+          <div class="mt-4 pt-3 border-t border-gray-800/80 text-[11px] font-mono-code text-emerald-300/80">
+            Resolution Limit: $\Delta d_{\text{arc}} \approx 0.8\text{ nm}$ at $f_{\text{drive}} = 100\text{ kHz}$
+          </div>
+        </div>
+
+        <!-- Card 3: Optical Transmission & Surface Roughness Scatter -->
+        <div class="bg-gray-900/40 border border-gray-800 rounded-2xl p-5 flex flex-col justify-between">
+          <div>
+            <div class="flex items-center gap-2 text-amber-400 font-semibold text-sm mb-2">
+              <i data-lucide="sun" class="w-4 h-4"></i>
+              <span>3. Davies-Bennett Optical Transmittance & Micro-Pit Scatter</span>
+            </div>
+            <p class="text-xs text-slate-300 leading-relaxed">
+              Dielectric thinning shifts the destructive interference quarter-wavelength condition ($\lambda_0 = 4 n_{\text{arc}} d_{\text{arc}}$), while impact micro-pitting introduces RMS surface roughness $\sigma_{\text{rms}}$, reducing direct solar cell photon admittance:
+            </p>
+            <div class="formula-box">
+              $$T_{\text{spec}}(\lambda, t) = T_0(\lambda) \cdot \exp\left[ - \left( \frac{4\pi \sigma_{\text{rms}}(t) \left(n_{\text{glass}} - 1\right)}{\lambda} \right)^2 \right] \cdot \left[ 1 - R_{\text{Fresnel}}(d_{\text{arc}}(t), \lambda) \right]$$
+            </div>
+            <p class="text-xs text-slate-300 leading-relaxed">
+              When $d_{\text{arc}}$ degrades from $120\text{ nm} \to 40\text{ nm}$, reflection losses jump from $1.2\%$ to $8.7\%$, dropping triple-junction InGaP/InGaAs/Ge photovoltaic conversion efficiency by $>18\%$.
+            </p>
+          </div>
+          <div class="mt-4 pt-3 border-t border-gray-800/80 text-[11px] font-mono-code text-amber-300/80">
+            AM0 Spectral Integration Range: $350\text{ nm} \le \lambda \le 1800\text{ nm}$
+          </div>
+        </div>
+
+        <!-- Card 4: Autonomous State Observer & Inversion Filter -->
+        <div class="bg-gray-900/40 border border-gray-800 rounded-2xl p-5 flex flex-col justify-between">
+          <div>
+            <div class="flex items-center gap-2 text-rose-400 font-semibold text-sm mb-2">
+              <i data-lucide="shield-alert" class="w-4 h-4"></i>
+              <span>4. Real-Time Extended Kalman Filter (EKF) Erosion Estimator</span>
+            </div>
+            <p class="text-xs text-slate-300 leading-relaxed">
+              To distinguish temporary electrostatic dust deposition (reversible) from permanent physical coating ablation (irreversible), the system evaluates the Jacobians of wind speed $v(t)$ and $C(t)$:
+            </p>
+            <div class="formula-box">
+              $$\hat{\mathbf{x}}_{k|k} = \hat{\mathbf{x}}_{k|k-1} + \mathbf{K}_k \left( \begin{bmatrix} C_{\text{meas}} \\ P_{\text{PV}} \end{bmatrix} - \mathbf{h}(\hat{\mathbf{x}}_{k|k-1}, v_k) \right), \quad \mathcal{D}_{\text{erosion}} = \oint_{\text{storm}} \nabla_v C(t) \, dt$$
+            </div>
+            <p class="text-xs text-slate-300 leading-relaxed">
+              If $\partial C / \partial t < 0$ during sustained periods where $v > v_{\text{saltation}}$, the filter attributes the change to irreversible dielectric stripping, instantly adjusting the mission power allocation model.
+            </p>
+          </div>
+          <div class="mt-4 pt-3 border-t border-gray-800/80 text-[11px] font-mono-code text-rose-300/80">
+            Convergence Latency: $< 400\text{ ms}$ on radiation-hardened RAD5545 CPU
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ========================================================================= -->
+    <!-- TAB 3: $225k NASA SBIR/STTR PROPOSAL & HARDWARE TRANSITION -->
+    <!-- ========================================================================= -->
+    <div id="viewProposal" class="hidden space-y-6">
+      <div class="border-b border-gray-800 pb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div>
+          <div class="flex items-center gap-2">
+            <span class="text-xs font-mono-code bg-cyan-950 text-cyan-400 px-2 py-0.5 rounded border border-cyan-800">NASA SBIR Phase I</span>
+            <span class="text-xs font-mono-code bg-amber-950 text-amber-400 px-2 py-0.5 rounded border border-amber-800">Solicitation Topic S12.04</span>
+          </div>
+          <h2 class="text-xl font-bold text-white mt-1">Autonomous Photovoltaic Abrasion Auditor & Life Predictor</h2>
+          <p class="text-xs text-slate-400">Total Award: $225,000 | Period of Performance: 6 Months | Focus: Surface Power / Space PV</p>
+        </div>
+        <div class="text-right">
+          <div class="text-lg font-bold font-mono-code text-cyan-400">$225,000</div>
+          <div class="text-[11px] text-slate-400">Firm-Fixed Price (Phase I)</div>
+        </div>
+      </div>
+
+      <!-- Budget Allocation Table & STTR Partner -->
+      <div class="grid grid-cols-1 md:grid-cols-12 gap-5">
+        <div class="md:col-span-7 bg-gray-900/40 border border-gray-800 rounded-2xl p-5">
+          <h3 class="text-sm font-semibold text-white mb-3 flex items-center gap-2">
+            <i data-lucide="pie-chart" class="w-4 h-4 text-cyan-400"></i>
+            Phase I Cost Breakdown & Subcontractor Split
+          </h3>
+          <div class="overflow-x-auto">
+            <table class="w-full text-left text-xs">
+              <thead class="bg-gray-950 text-slate-400 font-mono-code border-b border-gray-800">
+                <tr>
+                  <th class="p-2.5">Category</th>
+                  <th class="p-2.5">Allocation Description</th>
+                  <th class="p-2.5 text-right">Cost ($)</th>
+                  <th class="p-2.5 text-right">% Total</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-gray-800/60 font-mono-code">
+                <tr>
+                  <td class="p-2.5 font-sans font-medium text-white">Direct Labor (Lead PI)</td>
+                  <td class="p-2.5 text-slate-400 font-sans">Algorithms, EKF firmware & telemetry software</td>
+                  <td class="p-2.5 text-right text-cyan-300">$84,000</td>
+                  <td class="p-2.5 text-right">37.3%</td>
+                </tr>
+                <tr class="bg-cyan-950/20">
+                  <td class="p-2.5 font-sans font-medium text-cyan-200">University Research Partner</td>
+                  <td class="p-2.5 text-cyan-300 font-sans">UCF Exolith Lab & CATER Wind Tunnel Testing</td>
+                  <td class="p-2.5 text-right text-cyan-400 font-bold">$67,500</td>
+                  <td class="p-2.5 text-right text-cyan-400 font-bold">30.0%</td>
+                </tr>
+                <tr>
+                  <td class="p-2.5 font-sans font-medium text-white">Materials & Fab</td>
+                  <td class="p-2.5 text-slate-400 font-sans">Thin-film IDC coupons, sapphire & fused silica glass</td>
+                  <td class="p-2.5 text-right text-cyan-300">$32,000</td>
+                  <td class="p-2.5 text-right">14.2%</td>
+                </tr>
+                <tr>
+                  <td class="p-2.5 font-sans font-medium text-white">Test Chamber Gas/Simulant</td>
+                  <td class="p-2.5 text-slate-400 font-sans">MGS-1 Martian Global Simulant + $CO_2$ chillers</td>
+                  <td class="p-2.5 text-right text-cyan-300">$18,500</td>
+                  <td class="p-2.5 text-right">8.2%</td>
+                </tr>
+                <tr>
+                  <td class="p-2.5 font-sans font-medium text-white">G&A / Indirect Costs</td>
+                  <td class="p-2.5 text-slate-400 font-sans">Operations, accounting & reporting compliance</td>
+                  <td class="p-2.5 text-right text-cyan-300">$23,000</td>
+                  <td class="p-2.5 text-right">10.2%</td>
+                </tr>
+              </tbody>
+              <tfoot class="border-t-2 border-gray-700 font-mono-code text-cyan-400 font-bold">
+                <tr>
+                  <td class="p-2.5">TOTAL</td>
+                  <td class="p-2.5 font-sans font-normal text-slate-400">Firm fixed price contract</td>
+                  <td class="p-2.5 text-right">$225,000</td>
+                  <td class="p-2.5 text-right">100.0%</td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        </div>
+
+        <!-- Academic Partner Deep-Dive -->
+        <div class="md:col-span-5 bg-gray-900/40 border border-gray-800 rounded-2xl p-5 flex flex-col justify-between">
+          <div>
+            <div class="flex items-center justify-between pb-2 border-b border-gray-800">
+              <span class="text-xs font-semibold text-white flex items-center gap-1.5">
+                <i data-lucide="building-2" class="w-4 h-4 text-amber-400"></i>
+                STTR Partner: University of Central Florida (UCF)
+              </span>
+              <span class="text-[10px] font-mono-code text-emerald-400 bg-emerald-950 px-2 py-0.5 rounded border border-emerald-800">
+                Exact 30.0% STTR Split
+              </span>
+            </div>
+            <p class="text-xs text-slate-300 mt-3 leading-relaxed">
+              Subcontracting with the <strong class="text-white">UCF Center for Advanced Turbomachinery and Energy Research (CATER)</strong> and the <strong class="text-white">Exolith Lab</strong>. UCF provides access to specialized low-pressure environmental blast tunnels ($6\text{ mbar } CO_2$) equipped with particle image velocimetry (PIV) and authentic MGS-1 regolith simulant.
+            </p>
+            <div class="mt-4 space-y-2 text-xs text-slate-300">
+              <div class="flex items-start gap-2">
+                <i data-lucide="check-circle-2" class="w-4 h-4 text-cyan-400 shrink-0 mt-0.5"></i>
+                <span>Direct optical profilometry validation of sensor coupons.</span>
+              </div>
+              <div class="flex items-start gap-2">
+                <i data-lucide="check-circle-2" class="w-4 h-4 text-cyan-400 shrink-0 mt-0.5"></i>
+                <span>Simulated Martian dust devil wind sweeps up to $42\text{ m/s}$.</span>
+              </div>
+              <div class="flex items-start gap-2">
+                <i data-lucide="check-circle-2" class="w-4 h-4 text-cyan-400 shrink-0 mt-0.5"></i>
+                <span>Co-publication of peer-reviewed erosion calibration datasets.</span>
+              </div>
+            </div>
+          </div>
+          <div class="mt-4 p-2.5 bg-gray-950 rounded-xl border border-gray-800 text-[11px] font-mono-code text-slate-400 flex items-center justify-between">
+            <span>PI Partner: Dr. P. Metcalfe (UCF)</span>
+            <span class="text-amber-400">$67,500 Subcontract</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 6-Month Work Breakdown Milestones -->
+      <div class="bg-gray-900/40 border border-gray-800 rounded-2xl p-5">
+        <h3 class="text-sm font-semibold text-white mb-4 flex items-center gap-2">
+          <i data-lucide="calendar" class="w-4 h-4 text-cyan-400"></i>
+          6-Month Technical Work Breakdown Structure (WBS)
+        </h3>
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div class="p-3.5 bg-gray-950/70 border border-gray-800 rounded-xl relative">
+            <span class="text-[10px] font-mono-code text-cyan-400 bg-cyan-950 px-2 py-0.5 rounded">Months 1–2</span>
+            <h4 class="text-xs font-bold text-white mt-2">M1: Kinetic Modeling & IDC Mask Design</h4>
+            <p class="text-[11px] text-slate-400 mt-1 leading-relaxed">
+              Formulate 2D conformal field mapping of fringing capacitance vs. dielectric layer loss. Generate photolithography masks for 15 µm pitch sensor traces.
+            </p>
+          </div>
+
+          <div class="p-3.5 bg-gray-950/70 border border-gray-800 rounded-xl relative">
+            <span class="text-[10px] font-mono-code text-cyan-400 bg-cyan-950 px-2 py-0.5 rounded">Months 2–3</span>
+            <h4 class="text-xs font-bold text-white mt-2">M2: Substrate Micro-Fabrication</h4>
+            <p class="text-[11px] text-slate-400 mt-1 leading-relaxed">
+              Deposit ITO/Pt-Cr interdigitated fingers on Corning Willow glass and Eagle XG substrates. Sputter 120 nm multilayer TiO2/SiO2 antireflective stack.
+            </p>
+          </div>
+
+          <div class="p-3.5 bg-gray-950/70 border border-gray-800 rounded-xl relative">
+            <span class="text-[10px] font-mono-code text-cyan-400 bg-cyan-950 px-2 py-0.5 rounded">Months 4–5</span>
+            <h4 class="text-xs font-bold text-white mt-2">M3: UCF Mars Chamber Testing</h4>
+            <p class="text-[11px] text-slate-400 mt-1 leading-relaxed">
+              Expose micro-coupons to 0–40 m/s MGS-1 regolith blasting at 6 mbar CO2. Record empirical capacitance decay curves and calibrate EKF state observer.
+            </p>
+          </div>
+
+          <div class="p-3.5 bg-gray-950/70 border border-gray-800 rounded-xl relative">
+            <span class="text-[10px] font-mono-code text-cyan-400 bg-cyan-950 px-2 py-0.5 rounded">Month 6</span>
+            <h4 class="text-xs font-bold text-white mt-2">M4: Phase II Specs & Flight TRL 4/5</h4>
+            <p class="text-[11px] text-slate-400 mt-1 leading-relaxed">
+              Package flight telemetry ASIC architecture. Deliver final technical report, demonstration API, and test flight transition roadmap for commercial landers.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Phase II Transition Strategy -->
+      <div class="p-4 bg-gradient-to-r from-cyan-950/30 to-purple-950/30 border border-cyan-800/40 rounded-2xl flex flex-col md:flex-row items-center justify-between gap-4">
+        <div>
+          <h4 class="text-sm font-semibold text-white">Phase II Transition: $850,000–$1,200,000 Commercial & Mission Roadmap</h4>
+          <p class="text-xs text-slate-400 mt-0.5">
+            Pathfinder integration scheduled for commercial CLPS lunar lander solar baffles and future Mars sample retrieval surface photovoltaic wings.
+          </p>
+        </div>
+        <div class="shrink-0 flex items-center gap-2">
+          <span class="text-xs font-mono-code px-3 py-1.5 rounded-lg bg-cyan-900/60 text-cyan-300 border border-cyan-700/50">
+            TRL 3 $\to$ TRL 6 Plan
+          </span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ========================================================================= -->
+    <!-- TAB 4: COMMERCIAL & NATIONWIDE ARR BREAKDOWN -->
+    <!-- ========================================================================= -->
+    <div id="viewARR" class="hidden space-y-6">
+      <div class="border-b border-gray-800 pb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div>
+          <div class="flex items-center gap-2">
+            <span class="text-xs font-mono-code bg-emerald-950 text-emerald-400 px-2 py-0.5 rounded border border-emerald-800">Civil & Commercial Software TAM</span>
+            <span class="text-xs font-mono-code bg-slate-800 text-slate-300 px-2 py-0.5 rounded">SaaS + Edge Telemetry License</span>
+          </div>
+          <h2 class="text-xl font-bold text-white mt-1">Commercial Market Expansion & Nationwide ARR Distribution</h2>
+          <p class="text-xs text-slate-400">
+            Civil terrestrial applications across desert utility solar, autonomous heavy equipment, mining rovers, and optical sensors.
+          </p>
+        </div>
+        <div class="text-right">
+          <div class="text-2xl font-bold font-mono-code text-emerald-400">$218.4M</div>
+          <div class="text-[11px] text-slate-400">Total Mature Target ARR</div>
+        </div>
+      </div>
+
+      <!-- ARR Distribution Table -->
+      <div class="bg-gray-900/40 border border-gray-800 rounded-2xl p-5">
+        <h3 class="text-sm font-semibold text-white mb-3 flex items-center gap-2">
+          <i data-lucide="table" class="w-4 h-4 text-emerald-400"></i>
+          Civil Market Sizing & Revenue Projections
+        </h3>
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-xs">
+            <thead class="bg-gray-950 text-slate-400 font-mono-code border-b border-gray-800">
+              <tr>
+                <th class="p-2.5">Commercial Vertical</th>
+                <th class="p-2.5">Target Hardware / Operating Domain</th>
+                <th class="p-2.5">Pricing Metric</th>
+                <th class="p-2.5">Asset Base</th>
+                <th class="p-2.5 text-right">Mature ARR</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-800/60 font-mono-code text-slate-300">
+              <tr>
+                <td class="p-2.5 font-sans font-medium text-white flex items-center gap-2">
+                  <i data-lucide="sun" class="w-3.5 h-3.5 text-amber-400"></i>
+                  Desert Utility-Scale Solar
+                </td>
+                <td class="p-2.5 font-sans text-slate-400">Bifacial utility solar farms in Mojave, Atacama, Middle East</td>
+                <td class="p-2.5">$180 / MW / year</td>
+                <td class="p-2.5">420 GW tracked capacity</td>
+                <td class="p-2.5 text-right font-bold text-emerald-400">$75.6M</td>
+              </tr>
+              <tr>
+                <td class="p-2.5 font-sans font-medium text-white flex items-center gap-2">
+                  <i data-lucide="truck" class="w-3.5 h-3.5 text-cyan-400"></i>
+                  Autonomous Desert Mining Fleets
+                </td>
+                <td class="p-2.5 font-sans text-slate-400">LiDAR & optical camera suites on open-pit haul trucks</td>
+                <td class="p-2.5">$1,400 / vehicle / year</td>
+                <td class="p-2.5">34,000 active machines</td>
+                <td class="p-2.5 text-right font-bold text-emerald-400">$47.6M</td>
+              </tr>
+              <tr>
+                <td class="p-2.5 font-sans font-medium text-white flex items-center gap-2">
+                  <i data-lucide="plane" class="w-3.5 h-3.5 text-blue-400"></i>
+                  Commercial Aviation Avionics
+                </td>
+                <td class="p-2.5 font-sans text-slate-400">Forward weather radar radomes & windshield erosion monitoring</td>
+                <td class="p-2.5">$1,850 / airframe / year</td>
+                <td class="p-2.5">22,000 transport aircraft</td>
+                <td class="p-2.5 text-right font-bold text-emerald-400">$40.7M</td>
+              </tr>
+              <tr>
+                <td class="p-2.5 font-sans font-medium text-white flex items-center gap-2">
+                  <i data-lucide="tractor" class="w-3.5 h-3.5 text-emerald-400"></i>
+                  Precision Agriculture Autonomy
+                </td>
+                <td class="p-2.5 font-sans text-slate-400">Autonomous combine harvesters & field robots (dust-choked fields)</td>
+                <td class="p-2.5">$420 / tractor / year</td>
+                <td class="p-2.5">68,000 smart tractors</td>
+                <td class="p-2.5 text-right font-bold text-emerald-400">$28.5M</td>
+              </tr>
+              <tr>
+                <td class="p-2.5 font-sans font-medium text-white flex items-center gap-2">
+                  <i data-lucide="satellite" class="w-3.5 h-3.5 text-purple-400"></i>
+                  Commercial Space & Orbital Optical
+                </td>
+                <td class="p-2.5 font-sans text-slate-400">Lunar commercial landers, Earth-imaging telescopes, Starlink PV</td>
+                <td class="p-2.5">$8,500 / satellite payload</td>
+                <td class="p-2.5">3,060 deployed assets</td>
+                <td class="p-2.5 text-right font-bold text-emerald-400">$26.0M</td>
+              </tr>
+            </tbody>
+            <tfoot class="border-t-2 border-gray-700 font-mono-code text-emerald-400 font-bold">
+              <tr>
+                <td class="p-2.5">TOTAL MATURE ARR</td>
+                <td class="p-2.5 font-sans font-normal text-slate-400">Aggregated nationwide & global footprint</td>
+                <td class="p-2.5">-</td>
+                <td class="p-2.5">-</td>
+                <td class="p-2.5 text-right text-base">$218.4M</td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      </div>
+
+      <!-- Industry Deep-Dive Cards -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+        <!-- Deep Dive 1: Utility Solar -->
+        <div class="bg-gray-900/40 border border-gray-800 rounded-2xl p-5 space-y-2.5">
+          <div class="flex items-center justify-between">
+            <h4 class="text-sm font-semibold text-white flex items-center gap-2">
+              <i data-lucide="sun" class="w-4 h-4 text-amber-400"></i>
+              Utility-Scale Desert Solar Farms
+            </h4>
+            <span class="text-xs font-mono-code text-amber-400">$75.6M ARR</span>
+          </div>
+          <p class="text-xs text-slate-300">
+            <strong class="text-slate-100">Physics in 1 Sentence:</strong> High-velocity silica dust storms strip the 110 nm porous silica anti-reflective layer on utility PV panels, turning a 96% transmittance cover glass into a diffuse reflector with 14% energy loss.
+          </p>
+          <p class="text-xs text-slate-400">
+            <strong class="text-slate-200">Why Others Missed This (Plain English):</strong> Operators currently wash panels with expensive diesel water trucks on arbitrary 30-day schedules, failing to notice when the glass coating itself has been permanently eroded away rather than merely covered in dirt.
+          </p>
+        </div>
+
+        <!-- Deep Dive 2: Autonomous Mining -->
+        <div class="bg-gray-900/40 border border-gray-800 rounded-2xl p-5 space-y-2.5">
+          <div class="flex items-center justify-between">
+            <h4 class="text-sm font-semibold text-white flex items-center gap-2">
+              <i data-lucide="truck" class="w-4 h-4 text-cyan-400"></i>
+              Autonomous Desert Mining Fleets
+            </h4>
+            <span class="text-xs font-mono-code text-cyan-400">$47.6M ARR</span>
+          </div>
+          <p class="text-xs text-slate-300">
+            <strong class="text-slate-100">Physics in 1 Sentence:</strong> High kinetic momentum crushed-rock dust grains pit protective sapphire LiDAR windows, causing beam dispersion and false emergency stopping triggers.
+          </p>
+          <p class="text-xs text-slate-400">
+            <strong class="text-slate-200">Why Others Missed This (Plain English):</strong> Mines rely on mechanical rubber wipers that drag coarse silica grains across optical glass, accelerating micro-scratches instead of using capacitive erosion auditing to schedule pulse-air mitigation.
+          </p>
+        </div>
+
+        <!-- Deep Dive 3: Commercial Aviation -->
+        <div class="bg-gray-900/40 border border-gray-800 rounded-2xl p-5 space-y-2.5">
+          <div class="flex items-center justify-between">
+            <h4 class="text-sm font-semibold text-white flex items-center gap-2">
+              <i data-lucide="plane" class="w-4 h-4 text-blue-400"></i>
+              Commercial Aviation Radomes & Windows
+            </h4>
+            <span class="text-xs font-mono-code text-blue-400">$40.7M ARR</span>
+          </div>
+          <p class="text-xs text-slate-300">
+            <strong class="text-slate-100">Physics in 1 Sentence:</strong> Sub-visible ice crystals and volcanic ash at Mach 0.82 ablate polyurethane elastomeric coatings on radar nose cones, attenuating weather radar returns by up to 3.4 dB.
+          </p>
+          <p class="text-xs text-slate-400">
+            <strong class="text-slate-200">Why Others Missed This (Plain English):</strong> Airlines only discover radome erosion during scheduled C-checks via destructive tap testing or after unpredicted turbulence encounters caused by degraded radar imagery.
+          </p>
+        </div>
+
+        <!-- Deep Dive 4: Precision Agriculture -->
+        <div class="bg-gray-900/40 border border-gray-800 rounded-2xl p-5 space-y-2.5">
+          <div class="flex items-center justify-between">
+            <h4 class="text-sm font-semibold text-white flex items-center gap-2">
+              <i data-lucide="tractor" class="w-4 h-4 text-emerald-400"></i>
+              Precision Agriculture Autonomy
+            </h4>
+            <span class="text-xs font-mono-code text-emerald-400">$28.5M ARR</span>
+          </div>
+          <p class="text-xs text-slate-300">
+            <strong class="text-slate-100">Physics in 1 Sentence:</strong> Chaff, dry loam, and mineral dust kicked up during 24/7 harvest operations scour stereoscopic camera lenses on self-driving tractors, blinding neural network crop boundary detectors.
+          </p>
+          <p class="text-xs text-slate-400">
+            <strong class="text-slate-200">Why Others Missed This (Plain English):</strong> Machine vision teams assumed image blur was always loose dirt, repeatedly triggering nozzle fluid washes that formed sticky abrasive mud instead of auditing optical coating degradation.
+          </p>
+        </div>
+      </div>
+
+      <!-- Executive Summary & Valuation Multiple Callout -->
+      <div class="p-5 bg-gradient-to-r from-emerald-950/40 via-gray-900/40 to-cyan-950/40 border border-emerald-600/30 rounded-2xl flex flex-col md:flex-row items-center justify-between gap-4">
+        <div class="space-y-1">
+          <div class="text-xs font-mono-code text-emerald-400 uppercase tracking-wider">Executive Investment Summary</div>
+          <h3 class="text-base font-bold text-white">10x Deep-Tech ARR Multiple Valuation: $2.18 Billion Enterprise Potential</h3>
+          <p class="text-xs text-slate-300 max-w-3xl">
+            By shifting optical maintenance from reactive physical inspection to real-time capacitive state observation, DustErosion eliminates unpredicted power collapse in solar assets and sensor blindness across mission-critical autonomous platforms.
+          </p>
+        </div>
+        <div class="shrink-0">
+          <a href="mailto:support@rfwavecode.com" class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-black font-semibold text-xs transition shadow-lg shadow-cyan-900/30">
+            <i data-lucide="mail" class="w-4 h-4"></i>
+            <span>support@rfwavecode.com</span>
+          </a>
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- Global Footer -->
+  <footer class="border-t border-gray-900 bg-[#04060a] text-slate-500 text-xs py-4 px-6 mt-12">
+    <div class="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3">
+      <div class="flex items-center space-x-2">
+        <span class="font-mono-code text-cyan-400">DustErosion</span>
+        <span>· Mars Surface Photovoltaic Abrasion Auditor</span>
+      </div>
+      <div class="flex items-center space-x-4 font-mono-code text-[11px]">
+        <span>NASA SBIR Topic S12.04</span>
+        <span>•</span>
+        <span>STTR Partner: UCF CATER & Exolith Labs</span>
+        <span>•</span>
+        <a href="mailto:support@rfwavecode.com" class="hover:text-cyan-400 transition">support@rfwavecode.com</a>
+      </div>
+    </div>
+  </footer>
+
+  <!-- ========================================================================= -->
+  <!-- JAVASCRIPT: SIMULATION, CHARTS, LOGIC & MATHJAX HOOKS -->
+  <!-- ========================================================================= -->
+  <script>
+    // --- 1. Tab Switching Engine with MathJax Retypesetting ---
+    const tabMapping = {
+      'sim': { viewId: 'viewSim', btnId: 'tabBtnSim' },
+      'physics': { viewId: 'viewPhysics', btnId: 'tabBtnPhysics' },
+      'proposal': { viewId: 'viewProposal', btnId: 'tabBtnProposal' },
+      'arr': { viewId: 'viewARR', btnId: 'tabBtnARR' }
+    };
+
+    function switchTab(activeTab) {
+      Object.keys(tabMapping).forEach(tabKey => {
+        const viewEl = document.getElementById(tabMapping[tabKey].viewId);
+        const btnEl = document.getElementById(tabMapping[tabKey].btnId);
+
+        if (tabKey === activeTab) {
+          viewEl.classList.remove('hidden');
+          btnEl.className = 'flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all text-cyan-300 bg-cyan-950/60 border border-cyan-500/30';
+        } else {
+          viewEl.classList.add('hidden');
+          btnEl.className = 'flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all text-slate-400 hover:text-slate-200';
+        }
+      });
+
+      // Retypeset MathJax whenever tabs become visible
+      if (window.MathJax && window.MathJax.typesetPromise) {
+        window.MathJax.typesetPromise();
+      }
+
+      // Re-initialize canvas sizing and redraw if returning to sim
+      if (activeTab === 'sim') {
+        setTimeout(() => {
+          resizeCanvas();
+        }, 50);
+      }
+    }
+
+    // --- 2. Simulation State & Parameters ---
+    const simState = {
+      velocity: 18.0,      // m/s wind speed
+      dustDensity: 1.2,    // mg/m^3
+      grainHardness: 6.5,  // Mohs
+      arcThickness: 112.0, // nm (Nominal 120 nm)
+      capacitance: 44.8,   // pF (Nominal 48.0 pF)
+      rmsRoughness: 4.2,   // nm
+      transmittance: 93.4, // %
+      solarPower: 842,     // Watts
+      edsActive: false,    // Electrostatic Cleaning active
+      edsTimer: 0,
+      stormActive: false,
+      stormTimer: 0,
+      tick: 0,
+      particles: [],
+      sensorFingers: 9
+    };
+
+    // --- 3. HTML5 Canvas Simulation ---
+    const canvas = document.getElementById('simCanvas');
+    const ctx = canvas.getContext('2d');
+
+    function resizeCanvas() {
+      const rect = canvas.getBoundingClientRect();
+      const w = rect.width || 600;
+      const h = rect.height || 320;
+      const dpr = window.devicePixelRatio || 1;
+      canvas.width = w * dpr;
+      canvas.height = h * dpr;
+      ctx.resetTransform();
+      ctx.scale(dpr, dpr);
+    }
+    window.addEventListener('resize', resizeCanvas);
+
+    // Initialize Dust Particles
+    function initParticles() {
+      simState.particles = [];
+      const count = 75;
+      for (let i = 0; i < count; i++) {
+        simState.particles.push({
+          x: Math.random() * 800,
+          y: Math.random() * 200,
+          vx: 3 + Math.random() * 6,
+          vy: (Math.random() - 0.3) * 2,
+          radius: 1.2 + Math.random() * 3.5,
+          color: Math.random() > 0.3 ? '#f59e0b' : '#dc2626',
+          charge: (Math.random() - 0.5) * 2
+        });
+      }
+    }
+    initParticles();
+
+    // Canvas Update & Physics Step
+    function stepPhysics() {
+      simState.tick++;
+      const rect = canvas.getBoundingClientRect();
+      const w = rect.width || 600;
+      const h = rect.height || 320;
+
+      // Handle storm timeout
+      if (simState.stormActive) {
+        simState.stormTimer--;
+        if (simState.stormTimer <= 0) {
+          simState.stormActive = false;
+          document.getElementById('stormWarningOverlay').classList.add('hidden');
+          document.getElementById('sliderVelocity').value = 18;
+          document.getElementById('sliderDust').value = 1.2;
+          simState.velocity = 18;
+          simState.dustDensity = 1.2;
+          updateSliderLabels();
+        }
+      }
+
+      // Handle EDS Cleaning timeout
+      if (simState.edsActive) {
+        simState.edsTimer--;
+        if (simState.edsTimer <= 0) {
+          simState.edsActive = false;
+          const badge = document.getElementById('badgeMitigation');
+          badge.textContent = 'EDS INACTIVE';
+          badge.className = 'text-[10px] font-mono-code px-2 py-0.5 rounded bg-gray-800 text-slate-400 border border-gray-700';
+        }
+      }
+
+      // Physical Abrasion Rates (Bitter-Finnie approximation)
+      // Erosion occurs above threshold velocity (~8 m/s for MGS-1)
+      const v = simState.velocity;
+      const rho = simState.dustDensity;
+      const H = simState.grainHardness;
+
+      if (v > 8.0) {
+        const kineticFactor = 0.5 * rho * Math.pow(v - 8.0, 2.1) * (H / 6.0) * 0.000008;
+        simState.arcThickness = Math.max(12.0, simState.arcThickness - kineticFactor);
+        simState.rmsRoughness = Math.min(48.0, simState.rmsRoughness + kineticFactor * 0.45);
+      }
+
+      // Capacitance is a function of dielectric thickness (Conformal Mapping)
+      // C = C_sub + C_arc * (1 - exp(-2*pi*d/lambda))
+      const d = simState.arcThickness;
+      const baseCap = 18.0; // pF substrate
+      const maxArcCap = 30.0; // pF coating contribution
+      simState.capacitance = baseCap + maxArcCap * (1.0 - Math.exp(-d / 45.0));
+
+      // Transmittance from Davies-Bennett equation
+      const roughLoss = Math.exp(-Math.pow((4 * Math.PI * (simState.rmsRoughness * 1e-9) * 0.52) / (550e-9), 2));
+      const quarterWaveMismatch = Math.cos(((d - 120.0) / 120.0) * (Math.PI / 2));
+      simState.transmittance = Math.max(30.0, 96.0 * roughLoss * Math.abs(quarterWaveMismatch));
+
+      // Power output
+      simState.solarPower = Math.round(900 * (simState.transmittance / 100));
+
+      // Update Particles
+      simState.particles.forEach(p => {
+        // Wind speed sets horizontal speed
+        p.vx = (v * 0.55) + Math.sin(simState.tick * 0.05 + p.y) * 1.5;
+
+        // If EDS is active, high voltage electrostatic field repels dust upward
+        if (simState.edsActive && p.y > 180) {
+          p.vy -= 1.8;
+          p.vx += 3.0;
+        } else {
+          p.vy += 0.08; // slight gravity pull toward glass surface
+        }
+
+        p.x += p.vx;
+        p.y += p.vy;
+
+        // Glass surface impact at y ~ 240
+        if (p.y >= 238) {
+          p.y = 238;
+          p.vy = -Math.abs(p.vy) * 0.35; // inelastic bounce
+          // Micro-spark or scratch flash during storm
+          if (v > 25 && Math.random() > 0.8) {
+            ctx.fillStyle = '#fef08a';
+            ctx.fillRect(p.x, 238, 2, 2);
+          }
+        }
+
+        // Wrap around horizontally
+        if (p.x > w + 20) {
+          p.x = -15;
+          p.y = Math.random() * 210;
+          p.vy = (Math.random() - 0.2) * 2;
+        }
+      });
+    }
+
+    // Render Canvas Frame
+    function drawSimulation() {
+      const rect = canvas.getBoundingClientRect();
+      const w = rect.width || 600;
+      const h = rect.height || 320;
+
+      ctx.clearRect(0, 0, w, h);
+
+      // 1. Martian Sky Background (Atmospheric dust gradient)
+      const skyGrad = ctx.createLinearGradient(0, 0, 0, 240);
+      skyGrad.addColorStop(0, '#0a0d18');
+      skyGrad.addColorStop(0.7, '#24120f');
+      skyGrad.addColorStop(1, '#3b1812');
+      ctx.fillStyle = skyGrad;
+      ctx.fillRect(0, 0, w, 240);
+
+      // 2. Wind Streaks
+      ctx.strokeStyle = 'rgba(245, 158, 11, 0.09)';
+      ctx.lineWidth = 1;
+      const windLines = 8;
+      for (let i = 0; i < windLines; i++) {
+        const yLine = 40 + i * 22;
+        const xOffset = (simState.tick * simState.velocity * 0.8 + i * 70) % (w + 100);
+        ctx.beginPath();
+        ctx.moveTo(xOffset - 80, yLine);
+        ctx.lineTo(xOffset, yLine);
+        ctx.stroke();
+      }
+
+      // 3. Solar Panel Stack (Starting at Y = 240)
+      const panelY = 240;
+
+      // Substrate base (Fused Silica)
+      ctx.fillStyle = '#0f172a';
+      ctx.fillRect(0, panelY, w, h - panelY);
+
+      // Anti-Reflective Coating Layer (Height proportional to remaining thickness)
+      const arcH = Math.max(3, (simState.arcThickness / 120.0) * 16);
+      const arcGrad = ctx.createLinearGradient(0, panelY, 0, panelY + arcH);
+      arcGrad.addColorStop(0, 'rgba(56, 189, 248, 0.7)');
+      arcGrad.addColorStop(1, 'rgba(139, 92, 246, 0.5)');
+      ctx.fillStyle = arcGrad;
+      ctx.fillRect(0, panelY, w, arcH);
+
+      // Abraded Pitting & Roughness on top edge of ARC
+      ctx.fillStyle = '#ef4444';
+      if (simState.rmsRoughness > 8) {
+        for (let x = 0; x < w; x += 12) {
+          const pitDepth = Math.sin(x * 0.15 + simState.tick * 0.02) * (simState.rmsRoughness * 0.15);
+          if (pitDepth > 1.2) {
+            ctx.fillRect(x, panelY, 6, pitDepth);
+          }
+        }
+      }
+
+      // 4. Interdigitated Micro-Electrodes (Pt-Cr / ITO Combs)
+      const fingerSpacing = w / (simState.sensorFingers + 1);
+      for (let i = 1; i <= simState.sensorFingers; i++) {
+        const fingerX = i * fingerSpacing;
+        const isPolarityA = i % 2 === 0;
+
+        // Electrode Finger
+        ctx.fillStyle = isPolarityA ? '#38bdf8' : '#818cf8';
+        ctx.fillRect(fingerX - 4, panelY + arcH, 8, 22);
+
+        // Fringing Electric Field Lines (Evanescent curves into ARC)
+        ctx.strokeStyle = isPolarityA ? 'rgba(56, 189, 248, 0.35)' : 'rgba(129, 140, 248, 0.35)';
+        ctx.lineWidth = 1;
+        ctx.setLineDash([2, 3]);
+        ctx.beginPath();
+        ctx.arc(fingerX, panelY + arcH, 12, Math.PI, 0, false);
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
+
+      // 5. Active Electrostatic Wave Overlay (when EDS active)
+      if (simState.edsActive) {
+        ctx.strokeStyle = 'rgba(6, 182, 212, 0.85)';
+        ctx.lineWidth = 2.5;
+        ctx.beginPath();
+        for (let x = 0; x < w; x += 10) {
+          const yWave = panelY - 14 + Math.sin((x * 0.08) - (simState.tick * 0.4)) * 9;
+          if (x === 0) ctx.moveTo(x, yWave);
+          else ctx.lineTo(x, yWave);
+        }
+        ctx.stroke();
+      }
+
+      // 6. Draw Regolith Dust Particles
+      simState.particles.forEach(p => {
+        ctx.fillStyle = p.color;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Particle kinetic tail if moving fast
+        if (p.vx > 6) {
+          ctx.strokeStyle = 'rgba(245, 158, 11, 0.25)';
+          ctx.lineWidth = p.radius * 0.7;
+          ctx.beginPath();
+          ctx.moveTo(p.x, p.y);
+          ctx.lineTo(p.x - p.vx * 2, p.y - p.vy);
+          ctx.stroke();
+        }
+      });
+    }
+
+    // --- 4. Chart.js Telemetry Initializations ---
+    let phaseSpaceChart = null;
+    let transmittanceChart = null;
+    let powerModelChart = null;
+
+    const phaseSpaceHistory = [];
+    const timeLabels = [];
+    const transmittanceHistory = [];
+    const powerHistory = [];
+
+    function initCharts() {
+      // 1. Diagnostic Phase Space Scatter: Velocity (v) vs Capacitance (C)
+      const ctxPhase = document.getElementById('phaseSpaceChart').getContext('2d');
+
+      // Theoretical Baseline Corridor (Nominal clean behavior)
+      const nominalCurve = [];
+      for (let v = 0; v <= 45; v += 3) {
+        nominalCurve.push({ x: v, y: 46.5 - v * 0.04 }); // negligible loss baseline
+      }
+
+      // Hazard Boundary (Dielectric Scouring Zone)
+      const hazardBoundary = [
+        { x: 12, y: 38 },
+        { x: 20, y: 35 },
+        { x: 30, y: 30 },
+        { x: 45, y: 22 }
+      ];
+
+      phaseSpaceChart = new Chart(ctxPhase, {
+        type: 'scatter',
+        data: {
+          datasets: [
+            {
+              label: 'Live Operating State (v, C)',
+              data: phaseSpaceHistory,
+              backgroundColor: '#06b6d4',
+              borderColor: '#22d3ee',
+              pointRadius: 4,
+              showLine: true,
+              tension: 0.2,
+              borderWidth: 1.5
+            },
+            {
+              label: 'Nominal Baseline Corridor',
+              data: nominalCurve,
+              borderColor: 'rgba(52, 211, 153, 0.6)',
+              borderWidth: 1.5,
+              borderDash: [4, 4],
+              pointRadius: 0,
+              showLine: true
+            },
+            {
+              label: 'Abrasion Hazard Threshold',
+              data: hazardBoundary,
+              borderColor: 'rgba(239, 68, 68, 0.8)',
+              backgroundColor: 'rgba(239, 68, 68, 0.08)',
+              borderWidth: 2,
+              borderDash: [3, 3],
+              pointRadius: 0,
+              showLine: true,
+              fill: 'start'
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          animation: false,
+          scales: {
+            x: {
+              title: { display: true, text: 'Wind Velocity v (m/s)', color: '#94a3b8', font: { size: 10, family: 'JetBrains Mono' } },
+              grid: { color: '#1e293b' },
+              ticks: { color: '#64748b', font: { size: 9, family: 'JetBrains Mono' } },
+              min: 0,
+              max: 45
+            },
+            y: {
+              title: { display: true, text: 'IDC Capacitance C (pF)', color: '#94a3b8', font: { size: 10, family: 'JetBrains Mono' } },
+              grid: { color: '#1e293b' },
+              ticks: { color: '#64748b', font: { size: 9, family: 'JetBrains Mono' } },
+              min: 15,
+              max: 50
+            }
+          },
+          plugins: {
+            legend: {
+              position: 'top',
+              labels: { color: '#cbd5e1', font: { size: 9, family: 'Inter' }, boxWidth: 12 }
+            }
+          }
+        }
+      });
+
+      // 2. Optical Transmittance Chart
+      const ctxTrans = document.getElementById('transmittanceChart').getContext('2d');
+      transmittanceChart = new Chart(ctxTrans, {
+        type: 'line',
+        data: {
+          labels: timeLabels,
+          datasets: [{
+            label: 'T_opt (%)',
+            data: transmittanceHistory,
+            borderColor: '#38bdf8',
+            backgroundColor: 'rgba(56, 189, 248, 0.1)',
+            fill: true,
+            borderWidth: 1.5,
+            pointRadius: 0,
+            tension: 0.3
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          animation: false,
+          scales: {
+            x: { display: false },
+            y: {
+              min: 40,
+              max: 100,
+              grid: { color: '#1e293b' },
+              ticks: { color: '#64748b', font: { size: 9, family: 'JetBrains Mono' } }
+            }
+          },
+          plugins: { legend: { display: false } }
+        }
+      });
+
+      // 3. Power Model Drift Chart
+      const ctxPower = document.getElementById('powerModelChart').getContext('2d');
+      powerModelChart = new Chart(ctxPower, {
+        type: 'line',
+        data: {
+          labels: timeLabels,
+          datasets: [{
+            label: 'Array Watts',
+            data: powerHistory,
+            borderColor: '#f59e0b',
+            backgroundColor: 'rgba(245, 158, 11, 0.1)',
+            fill: true,
+            borderWidth: 1.5,
+            pointRadius: 0,
+            tension: 0.3
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          animation: false,
+          scales: {
+            x: { display: false },
+            y: {
+              min: 300,
+              max: 950,
+              grid: { color: '#1e293b' },
+              ticks: { color: '#64748b', font: { size: 9, family: 'JetBrains Mono' } }
+            }
+          },
+          plugins: { legend: { display: false } }
+        }
+      });
+    }
+
+    // Update Telemetry Displays & Charts
+    function updateTelemetryHUD() {
+      // Numerical Cards
+      document.getElementById('statVelocity').textContent = `${simState.velocity.toFixed(1)} m/s`;
+      document.getElementById('barVelocity').style.width = `${Math.min(100, (simState.velocity / 45) * 100)}%`;
+
+      document.getElementById('statCapacitance').textContent = `${simState.capacitance.toFixed(1)} pF`;
+      const capDelta = (((simState.capacitance - 48.0) / 48.0) * 100).toFixed(1);
+      document.getElementById('statCapDelta').textContent = `${capDelta}%`;
+      document.getElementById('barCap').style.width = `${Math.min(100, (simState.capacitance / 50) * 100)}%`;
+
+      document.getElementById('statThickness').textContent = `${Math.round(simState.arcThickness)} nm`;
+      document.getElementById('barThickness').style.width = `${Math.min(100, (simState.arcThickness / 120) * 100)}%`;
+
+      document.getElementById('statOutput').textContent = `${simState.solarPower} W`;
+      document.getElementById('statTransmittance').textContent = `${simState.transmittance.toFixed(1)}%`;
+      document.getElementById('statModelDrift').textContent = `${(simState.solarPower - 900)} W`;
+      document.getElementById('barOutput').style.width = `${Math.min(100, (simState.solarPower / 900) * 100)}%`;
+
+      // Diagnostic State Observer Evaluator
+      const badge = document.getElementById('diagStatusBadge');
+      const explanation = document.getElementById('diagExplanation');
+
+      if (simState.arcThickness < 60) {
+        badge.textContent = 'CRITICAL ABLATION: TCO/ARC BREACH';
+        badge.className = 'font-mono-code px-2 py-0.5 rounded text-[10px] bg-rose-950 text-rose-400 border border-rose-800 animate-pulse';
+        explanation.textContent = 'Dielectric ARC thinned below 60 nm threshold. Reflectance losses exceeded 18%. Rover mission energy model degraded; recommending night-time battery conservation.';
+      } else if (simState.velocity > 28 && simState.dustDensity > 4.0) {
+        badge.textContent = 'HIGH-VELOCITY KINETIC SCOURING';
+        badge.className = 'font-mono-code px-2 py-0.5 rounded text-[10px] bg-amber-950 text-amber-400 border border-amber-800';
+        explanation.textContent = 'Saltating regolith particle flux exceeding cohesive yield point. Capacitive drift confirms active material removal. Electrostatic mitigation standby.';
+      } else {
+        badge.textContent = 'NOMINAL TRANSMISSION';
+        badge.className = 'font-mono-code px-2 py-0.5 rounded text-[10px] bg-emerald-950 text-emerald-400 border border-emerald-800';
+        explanation.textContent = 'Kinetic energy flux is below the cohesive fracture threshold of the TiO2/SiO2 matrix. Dielectric thickness remains calibrated.';
+      }
+
+      // Append to Chart Histories (Throttled update)
+      if (simState.tick % 4 === 0) {
+        phaseSpaceHistory.push({ x: Number(simState.velocity.toFixed(1)), y: Number(simState.capacitance.toFixed(1)) });
+        if (phaseSpaceHistory.length > 25) phaseSpaceHistory.shift();
+
+        timeLabels.push('');
+        transmittanceHistory.push(Number(simState.transmittance.toFixed(1)));
+        powerHistory.push(simState.solarPower);
+
+        if (timeLabels.length > 30) {
+          timeLabels.shift();
+          transmittanceHistory.shift();
+          powerHistory.shift();
+        }
+
+        if (phaseSpaceChart) phaseSpaceChart.update();
+        if (transmittanceChart) transmittanceChart.update();
+        if (powerModelChart) powerModelChart.update();
+      }
+    }
+
+    // --- 5. Interactive Sliders & Actions ---
+    const sliderVel = document.getElementById('sliderVelocity');
+    const sliderDust = document.getElementById('sliderDust');
+    const sliderHard = document.getElementById('sliderHardness');
+
+    function updateSliderLabels() {
+      document.getElementById('sliderVelVal').textContent = `${sliderVel.value} m/s`;
+      document.getElementById('sliderDustVal').textContent = `${sliderDust.value} mg/m³`;
+      document.getElementById('sliderHardnessVal').textContent = `${sliderHard.value} Mohs`;
+    }
+
+    sliderVel.addEventListener('input', (e) => {
+      simState.velocity = parseFloat(e.target.value);
+      updateSliderLabels();
+    });
+
+    sliderDust.addEventListener('input', (e) => {
+      simState.dustDensity = parseFloat(e.target.value);
+      updateSliderLabels();
+    });
+
+    sliderHard.addEventListener('input', (e) => {
+      simState.grainHardness = parseFloat(e.target.value);
+      updateSliderLabels();
+    });
+
+    // Action 1: Inject Dust Storm
+    function injectGlobalDustStorm() {
+      simState.stormActive = true;
+      simState.stormTimer = 160; // ticks
+      simState.velocity = 38.5;
+      simState.dustDensity = 11.4;
+      sliderVel.value = 38.5;
+      sliderDust.value = 11.4;
+      updateSliderLabels();
+      document.getElementById('stormWarningOverlay').classList.remove('hidden');
+    }
+
+    // Action 2: Trigger Electrostatic Mitigation (EDS)
+    function triggerElectrostaticMitigation() {
+      simState.edsActive = true;
+      simState.edsTimer = 80;
+      const badge = document.getElementById('badgeMitigation');
+      badge.textContent = 'EDS ACTIVE (1.2 kV @ 25 Hz)';
+      badge.className = 'text-[10px] font-mono-code px-2 py-0.5 rounded bg-cyan-950 text-cyan-300 border border-cyan-500 animate-pulse';
+    }
+
+    // Action 3: Recalibrate Auditor Sensors
+    function recalibrateSensors() {
+      simState.arcThickness = 120.0;
+      simState.rmsRoughness = 2.0;
+      simState.transmittance = 96.0;
+      phaseSpaceHistory.length = 0;
+    }
+
+    // --- 6. Main Run Loop ---
+    function animationLoop() {
+      stepPhysics();
+      drawSimulation();
+      updateTelemetryHUD();
+      requestAnimationFrame(animationLoop);
+    }
+
+    window.onload = function() {
+      lucide.createIcons();
+      resizeCanvas();
+      initCharts();
+      animationLoop();
+    };
+  </script>
+</body>
+</html>
